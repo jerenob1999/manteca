@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { RuleType } from "../interfaces/rule.interface";
 import {
   addOrUpdateRule,
@@ -15,7 +15,11 @@ var requestOptions = {
   headers: myHeaders,
 };
 
-export const deleteRule = async (req: Request, res: Response) => {
+export const deleteRule = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const { userId } = req.params;
 
   try {
@@ -23,11 +27,15 @@ export const deleteRule = async (req: Request, res: Response) => {
     res.status(200).json({ message });
   } catch (error) {
     console.error("Error in deleteRule controller:", error);
-    res.status(500).json({ error: "Failed to delete rule(s)." });
+    next(error);
   }
 };
 
-export const addNewRule = async (req: Request, res: Response) => {
+export const addNewRule = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const ruleType = req.body?.ruleType;
   const { userId } = req.params;
 
@@ -43,11 +51,20 @@ export const addNewRule = async (req: Request, res: Response) => {
   }
 
   try {
+    const response = await fetch(
+      `https://sandbox.manteca.dev/crypto/v1/user/${userId}`,
+      requestOptions
+    );
+    const user = await response.json();
+
+    if (user?.internalStatus === "USER_NF") {
+      throw new Error("User not found.");
+    }
     const rule = await addOrUpdateRule(ruleType, userId);
     res.status(200).json({ message: "Rule added/updated successfully.", rule });
   } catch (error) {
     console.error("Error in addNewRule controller:", error);
-    res.status(500).json({ error: "Failed to process the request." });
+    next(error);
   }
 };
 
