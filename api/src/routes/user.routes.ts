@@ -17,6 +17,6 @@ router.delete("/user/:userId/", deleteRule);
 
 router.post("/user/:userId/", addNewRule);
 
-router.post("/deposit/", deposit);
+router.post("/deposit/:userId/", deposit);
 
 export default router;

@@ -6,14 +6,10 @@ import {
   getRuleByUserId,
 } from "../services/user.services";
 import { env } from "../configs/environments";
+import { axiosInstanceManteca } from "../lib/axios";
 
 var myHeaders = new Headers();
 myHeaders.append("md-api-key", env.API_KEY || "");
-
-var requestOptions = {
-  method: "GET",
-  headers: myHeaders,
-};
 
 export const deleteRule = async (
   req: Request,
@@ -51,50 +47,82 @@ export const addNewRule = async (
   }
 
   try {
-    const response = await fetch(
-      `https://sandbox.manteca.dev/crypto/v1/user/${userId}`,
-      requestOptions
-    );
-    const user = await response.json();
+    const response = await axiosInstanceManteca.get(`/user/${userId}`);
+    const user = await response.data;
 
-    if (user?.internalStatus === "USER_NF") {
+    if (!user) {
       throw new Error("User not found.");
     }
+
     const rule = await addOrUpdateRule(ruleType, userId);
     res.status(200).json({ message: "Rule added/updated successfully.", rule });
   } catch (error) {
-    console.error("Error in addNewRule controller:", error);
     next(error);
   }
 };
 
-export const getUser = async (req: Request, res: Response) => {
+export const getUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const { userId } = req.params;
   try {
-    const response = await fetch(
-      `https://sandbox.manteca.dev/crypto/v1/user/${userId}`,
-      requestOptions
+    const response = await axiosInstanceManteca.get(`/user/${userId}`);
+    const user = await response.data;
+    const balanceResponse = await axiosInstanceManteca.get(
+      `/user/${userId}/balance`
     );
-    const user = await response.json();
+    const balance = await balanceResponse.data;
     const rule = await getRuleByUserId(userId);
-    res.send({ user, rule });
+    res.send({ user, rule, balance });
   } catch (error) {
-    console.error("Error in addNewRule controller:", error);
-    res.status(500).json({ error: "Failed to process the request." });
+    next(error);
   }
 };
 
-export const deposit = async (req: Request, res: Response) => {
+export const deposit = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { userId } = req.params;
   const receivedSecret = req.headers["x-webhook-secret"];
   const event = req.body;
 
-  console.log(req.body);
-  res.status(200).send("Evento procesado correctamente");
+  if (!receivedSecret || receivedSecret !== env.WEBHOOK_SECRET) {
+    res.status(401).send("Unauthorized");
+  }
+
+  try {
+    const rule = await getRuleByUserId(userId);
+    if (rule?.rule === RuleType.INSTA_INVERSION) {
+    }
+
+    if (rule?.rule === RuleType.INSTA_VENTA) {
+      const data = {
+        userAnyId: userId,
+        asset: "USDT",
+        against: "ARS",
+        againstAmount: "1",
+      };
+      const response = await axiosInstanceManteca.post(
+        "/synthetics/ramp-off",
+        data
+      );
+      const result = await response.data;
+      console.log(result);
+    }
+    res.status(200).send("Evento procesado correctamente");
+  } catch (error: any) {
+    console.error(error?.response?.data);
+    next(error);
+  }
 };
 
 export const registerWebhook = async () => {
   const raw = JSON.stringify({
-    url: "https://671b-2803-9800-98cb-8292-6dd8-5d68-5d1e-82f9.ngrok-free.app/api/deposit",
+    url: "http://localhost:3000/api/deposit",
     events: ["FIAT_WITHDRAW_UPDATE"],
   });
 
