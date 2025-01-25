@@ -1,8 +1,7 @@
 import { Router } from "express";
 import {
   getUser,
-  registerWebhook,
-  deposit,
+  newDeposit,
   addNewRule,
   deleteRule,
 } from "../controllers/user.controller";
@@ -11,12 +10,10 @@ const router = Router();
 
 router.get("/user/:userId", getUser);
 
-router.post("/webhook", registerWebhook);
+router.delete("/user/:userId/rule", deleteRule);
 
-router.delete("/user/:userId/", deleteRule);
+router.put("/user/:userId/rule", addNewRule);
 
-router.post("/user/:userId/", addNewRule);
-
-router.post("/deposit/:userId/", deposit);
+router.post("/user/crypto", newDeposit);
 
 export default router;

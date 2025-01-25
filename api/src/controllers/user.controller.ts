@@ -5,11 +5,12 @@ import {
   deleteRuleByUserId,
   getRuleByUserId,
 } from "../services/user.services";
-import { env } from "../configs/environments";
 import { axiosInstanceManteca } from "../lib/axios";
-
-var myHeaders = new Headers();
-myHeaders.append("md-api-key", env.API_KEY || "");
+import { AxiosResponse } from "axios";
+import { LockPriceResponse } from "../interfaces/api.interfaces";
+import { NewDepositEventBody } from "../interfaces/api.interfaces";
+import { PriceCoinResponse } from "../interfaces/api.interfaces";
+import { getCryptoPrice } from "../utils/getCryptoPrice.util";
 
 export const deleteRule = async (
   req: Request,
@@ -68,7 +69,7 @@ export const getUser = async (
 ) => {
   const { userId } = req.params;
   try {
-    const response = await axiosInstanceManteca.get(`/user/${userId}`);
+    const response = await axiosInstanceManteca.get(`/user/all`);
     const user = await response.data;
     const balanceResponse = await axiosInstanceManteca.get(
       `/user/${userId}/balance`
@@ -81,59 +82,59 @@ export const getUser = async (
   }
 };
 
-export const deposit = async (
-  req: Request,
+export const newDeposit = async (
+  req: Request<{}, {}, NewDepositEventBody>,
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-  const receivedSecret = req.headers["x-webhook-secret"];
-  const event = req.body;
-
-  if (!receivedSecret || receivedSecret !== env.WEBHOOK_SECRET) {
-    res.status(401).send("Unauthorized");
-  }
+  const userId = req.body.data.userNumberId;
+  const asset = req.body.data.asset;
 
   try {
+    if (asset !== "USDT" && asset !== "USDC") {
+      res.status(201).send(`Deposit successfull`);
+      return;
+    }
+
     const rule = await getRuleByUserId(userId);
     if (rule?.rule === RuleType.INSTA_INVERSION) {
+      const btcToArsPrice: AxiosResponse<PriceCoinResponse> =
+        await axiosInstanceManteca.get(`/price/${asset}_ARS`);
+
+      const lockPrice: AxiosResponse<LockPriceResponse> =
+        await axiosInstanceManteca.post("order/lock", {
+          coin: `BTC_${asset}`,
+          operation: "BUY",
+          userId: userId,
+        });
+
+      console.log(
+        getCryptoPrice(req.body.data.amount, btcToArsPrice.data.sell)
+      );
+      const newOrder = await axiosInstanceManteca.post("order", {
+        userId: userId,
+        amount: getCryptoPrice(req.body.data.amount, btcToArsPrice.data.sell),
+        coin: `BTC_${asset}`,
+        operation: "BUY",
+        code: lockPrice.data.code,
+      });
+
+      res.status(201).send(newOrder.data);
     }
 
     if (rule?.rule === RuleType.INSTA_VENTA) {
-      const data = {
+      const response = await axiosInstanceManteca.post("/synthetics/ramp-off", {
         userAnyId: userId,
-        asset: "USDT",
+        asset: req.body.data.asset,
         against: "ARS",
-        againstAmount: "1",
-      };
-      const response = await axiosInstanceManteca.post(
-        "/synthetics/ramp-off",
-        data
-      );
-      const result = await response.data;
-      console.log(result);
+        againstAmount: req.body.data.amount,
+        withdrawAddress: "any-available",
+      });
+
+      res.status(200).send(response.data);
     }
-    res.status(200).send("Evento procesado correctamente");
   } catch (error: any) {
     console.error(error?.response?.data);
     next(error);
   }
-};
-
-export const registerWebhook = async () => {
-  const raw = JSON.stringify({
-    url: "http://localhost:3000/api/deposit",
-    events: ["FIAT_WITHDRAW_UPDATE"],
-  });
-
-  var requestOptions = {
-    method: "POST",
-    headers: myHeaders,
-    body: raw,
-  };
-
-  fetch("https://sandbox.manteca.dev/crypto/v1/webhook", requestOptions)
-    .then((response) => response.text())
-    .then((result) => console.log(result))
-    .catch((error) => console.log("error", error));
 };
