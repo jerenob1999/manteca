@@ -1,10 +1,9 @@
+import { NewDepositEventBody } from "../interfaces/manteca.interfaces";
 import GenericException from "../exceptions/generic.exception";
 import { RuleType } from "../interfaces/rule.interface";
 import { IRule } from "../interfaces/rule.interface";
 import MantecaService from "./manteca.service";
 import { Rule } from "../models/rules.model";
-import { getCryptoPrice } from "../utils/getCryptoPrice.util";
-import { NewDepositEventBody } from "../interfaces/manteca.interfaces";
 import { isAxiosError } from "axios";
 
 class UserService {
@@ -22,6 +21,32 @@ class UserService {
     this.mantecaService = MantecaService.getInstance();
   }
 
+  private handleError(
+    error: unknown,
+    defaultInternalStatus: string,
+    defaultMessage: string
+  ) {
+    console.error(`Error in UserService:`, error);
+
+    if (isAxiosError(error)) {
+      throw new GenericException({
+        status: error.response?.status || 500,
+        internalStatus: error?.response?.data.internalStatus || "API_ERROR",
+        message: error?.response?.data.message || "Unknown error",
+      });
+    }
+
+    if (error instanceof GenericException) {
+      throw error;
+    }
+
+    throw new GenericException({
+      status: 500,
+      internalStatus: defaultInternalStatus,
+      message: defaultMessage,
+    });
+  }
+
   getUser = async (userId: string) => {
     try {
       const [user, userBalance, userRule] = await Promise.all([
@@ -32,21 +57,11 @@ class UserService {
 
       return { ...user, rule: userRule, balance: userBalance };
     } catch (error) {
-      console.error("Error in getUser:", error);
-
-      if (isAxiosError(error)) {
-        throw new GenericException({
-          status: error.response?.status || 500,
-          internalStatus: error?.response?.data.internalStatus || "API_ERROR",
-          message: error?.response?.data.message || "Unknown error",
-        });
-      }
-
-      throw new GenericException({
-        status: 500,
-        internalStatus: "UNKNOWN_ERROR",
-        message: "Unexpected error while retrieving the user",
-      });
+      throw this.handleError(
+        error,
+        "UNKNOWN_ERROR",
+        "Unexpected error while retrieving the user"
+      );
     }
   };
 
@@ -58,7 +73,7 @@ class UserService {
       ) {
         throw new GenericException({
           status: 400,
-          internalStatus: "RULE_NOT_FOUND",
+          internalStatus: "INVALID_RULE",
           message: `Invalid ruleType field`,
         });
       }
@@ -82,17 +97,11 @@ class UserService {
         return await newRule.save();
       }
     } catch (error) {
-      console.error("Error in setRule:", error);
-
-      if (error instanceof GenericException) {
-        throw error;
-      }
-
-      throw new GenericException({
-        status: 500,
-        internalStatus: "SET_RULE_ERROR",
-        message: "Unexpected error while adding a new rule",
-      });
+      throw this.handleError(
+        error,
+        "SET_RULE_ERROR",
+        "Unexpected error while adding a new rule"
+      );
     }
   };
 
@@ -108,17 +117,11 @@ class UserService {
       }
       return `Rule for user ${userId} deleted successfully.`;
     } catch (error) {
-      console.error("Error in deleteRuleByUserId:", error);
-
-      if (error instanceof GenericException) {
-        throw error;
-      }
-
-      throw new GenericException({
-        status: 500,
-        internalStatus: "DELETE_RULE_ERROR",
-        message: "Unexpected error while deleting rule",
-      });
+      throw this.handleError(
+        error,
+        "DELETE_RULE_ERROR",
+        "Unexpected error while deleting rule"
+      );
     }
   };
 
@@ -134,16 +137,11 @@ class UserService {
       }
       return rule;
     } catch (error) {
-      console.error("Error in getRuleByUserId:", error);
-      if (error instanceof GenericException) {
-        throw error;
-      }
-
-      throw new GenericException({
-        status: 500,
-        internalStatus: "GET_RULE_ERROR",
-        message: "Unexpected error while retrieving the rule",
-      });
+      throw this.handleError(
+        error,
+        "GET_RULE_ERROR",
+        "Unexpected error while retrieving the rule"
+      );
     }
   };
 
@@ -155,14 +153,13 @@ class UserService {
       if (asset !== "USDT" && asset !== "USDC") {
         return `Deposit successfull`;
       }
-
       const rule = await this.getRuleByUserId(userId);
 
-      if (rule?.rule === RuleType.INSTA_INVERSION) {
-        const btcToArsPrice = await this.mantecaService.getCoinPrice(
-          `${asset}_ARS`
-        );
+      if (!rule) {
+        return `Deposit successfull`;
+      }
 
+      if (rule?.rule === RuleType.INSTA_INVERSION) {
         const lockPrice = await this.mantecaService.lockPrice({
           coin: `BTC_${asset}`,
           operation: "BUY",
@@ -171,20 +168,14 @@ class UserService {
 
         await this.mantecaService.postOrder({
           userId: userId,
-          amount: getCryptoPrice(body.data.amount, btcToArsPrice.sell),
+          amount: body.data.amount,
           coin: `BTC_${asset}`,
           operation: "BUY",
           code: lockPrice.code,
         });
-
-        return "New order successfull";
       }
 
       if (rule?.rule === RuleType.INSTA_VENTA) {
-        const btcToArsPrice = await this.mantecaService.getCoinPrice(
-          `${asset}_ARS`
-        );
-
         const lockPrice = await this.mantecaService.lockPrice({
           coin: `BTC_${asset}`,
           operation: "SELL",
@@ -193,14 +184,19 @@ class UserService {
 
         await this.mantecaService.postOrder({
           userId: userId,
-          amount: getCryptoPrice(body.data.amount, btcToArsPrice.buy),
+          amount: body.data.amount,
           coin: `BTC_${asset}`,
-          operation: "BUY",
+          operation: "SELL",
           code: lockPrice.code,
         });
       }
-    } catch (error: any) {
-      // throw new GenericException({});
+      return "New order placed successfully";
+    } catch (error) {
+      throw this.handleError(
+        error,
+        "DEPOSIT_ERROR",
+        "Unexpected error while depositing"
+      );
     }
   };
 }
