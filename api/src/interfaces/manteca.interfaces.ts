@@ -1,7 +1,23 @@
-export interface LockPriceResponse {
+export type Operation = "BUY" | "SELL";
+
+export interface LockPrice {
   code: string;
   price: string;
   expires: string;
+}
+
+export interface LockPriceBody {
+  coin: string;
+  operation: Operation;
+  userId: string;
+}
+
+export interface NewOrderBody {
+  userId: string;
+  amount: string;
+  coin: string;
+  operation: Operation;
+  code: string;
 }
 
 export interface NewDepositEventBody {
@@ -27,7 +43,7 @@ export interface EventData {
   userExternalId: string;
 }
 
-export interface PriceCoinResponse {
+export interface PriceCoin {
   coin: string;
   timestamp: string;
   buy: string;

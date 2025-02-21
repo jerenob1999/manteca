@@ -1,19 +1,28 @@
 import { Router } from "express";
-import {
-  getUser,
-  newDeposit,
-  addNewRule,
-  deleteRule,
-} from "../controllers/user.controller";
+import { UserController } from "../controllers/user.controller";
+import { urlencoded } from "body-parser";
+import cors from "cors";
 
-const router = Router();
+export class UserRoutes {
+  public router: Router = Router();
+  public controller: UserController = new UserController();
 
-router.get("/user/:userId", getUser);
+  constructor() {
+    this.init();
+  }
 
-router.delete("/user/:userId/rule", deleteRule);
+  public init() {
+    this.router.use(
+      urlencoded({
+        extended: true,
+      })
+    );
 
-router.put("/user/:userId/rule", addNewRule);
+    this.router.use(cors());
 
-router.post("/user/crypto", newDeposit);
-
-export default router;
+    this.router.get("/:userId", this.controller.getUser);
+    this.router.delete("/:userId/rule", this.controller.deleteRule);
+    this.router.put("/:userId/rule", this.controller.addNewRule);
+    this.router.post("/user/crypto", this.controller.depositWebhook);
+  }
+}
