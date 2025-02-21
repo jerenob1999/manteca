@@ -47,6 +47,7 @@ class UserService {
     });
   }
 
+  // GET user info, rule and balance
   getUser = async (userId: string) => {
     try {
       const [user, userBalance, userRule] = await Promise.all([
@@ -65,6 +66,7 @@ class UserService {
     }
   };
 
+  // POST new user rule
   setRule = async (ruleType: RuleType, userId: string): Promise<IRule> => {
     try {
       if (
@@ -105,6 +107,7 @@ class UserService {
     }
   };
 
+  // DELETE user rule by userId
   deleteRuleByUserId = async (userId: string) => {
     try {
       const result = await Rule.deleteOne({ userId });
@@ -125,6 +128,7 @@ class UserService {
     }
   };
 
+  // GET user rule by userId
   getRuleByUserId = async (userId: string): Promise<IRule | null> => {
     try {
       const rule = await Rule.findOne({ userId });
@@ -145,6 +149,7 @@ class UserService {
     }
   };
 
+  // POST webhook depending on user rule
   postDeposit = async (body: NewDepositEventBody) => {
     const userId = body.data.userNumberId;
     const asset = body.data.asset;

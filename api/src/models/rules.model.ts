@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 import { IRule, RuleType } from "../interfaces/rule.interface";
 
 const RuleSchema: Schema = new Schema({

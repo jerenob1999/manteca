@@ -23,6 +23,6 @@ export class UserRoutes {
     this.router.get("/:userId", this.controller.getUser);
     this.router.delete("/:userId/rule", this.controller.deleteRule);
     this.router.put("/:userId/rule", this.controller.addNewRule);
-    this.router.post("/crypto", this.controller.depositWebhook);
+    this.router.post("/transaction", this.controller.depositWebhook);
   }
 }
